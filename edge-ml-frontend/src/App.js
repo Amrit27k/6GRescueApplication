@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Play, Eye, AlertCircle, CheckCircle, Loader, Camera, Send, Server, Wifi, WifiOff, User, FolderUp, Image, PlayCircle } from 'lucide-react';
-import './test-App.css';
+import './App.css';
 
 const EdgeMLDashboard = () => {
   const [activeTab, setActiveTab] = useState('upload');
