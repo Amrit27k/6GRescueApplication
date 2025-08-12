@@ -10,7 +10,7 @@ const EdgeMLDashboard = () => {
   const [isDeploying, setIsDeploying] = useState(false);
   const [isStreamActive, setIsStreamActive] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [hubToken, setHubToken] = useState('e976480cd4dd4addab434134aa5d8e56');
+  const [hubToken, setHubToken] = useState('');
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [userInfo, setUserInfo] = useState(null);
   const [deploymentProgress, setDeploymentProgress] = useState(0);
@@ -31,9 +31,43 @@ const EdgeMLDashboard = () => {
   const fileInputRef = useRef(null);
   const streamImgRef = useRef(null);
   const websocketRef = useRef(null);
+  const getApiConfig = () => {
+    // Try environment variables first
+    if (process.env.REACT_APP_API_BASE) {
+      return {
+        API_BASE: process.env.REACT_APP_API_BASE,
+        BACKEND_HOST: process.env.REACT_APP_BACKEND_HOST || 'localhost',
+        BACKEND_PORT: process.env.REACT_APP_BACKEND_PORT || '8080'
+      };
+    }
 
+    // Fallback: try to detect from current location
+    const currentHost = window.location.hostname;
+    const backendHost = currentHost === 'localhost' ? 'localhost' : currentHost;
+
+    return {
+      API_BASE: `http://${backendHost}:8080/api`,
+      BACKEND_HOST: backendHost,
+      BACKEND_PORT: '8080'
+    };
+  };
   // Updated API base to match your backend
-  const API_BASE = 'http://10.70.0.64:8080/api';
+  const config = getApiConfig()
+  // Updated API base to match your backend
+  const API_BASE = config.API_BASE;
+  const BACKEND_HOST = config.BACKEND_HOST;
+  const BACKEND_PORT = config.BACKEND_PORT;
+
+  // Log configuration for debugging
+  useEffect(() => {
+    console.log('API Configuration:', {
+      API_BASE,
+      BACKEND_HOST,
+      BACKEND_PORT,
+      current_hostname: window.location.hostname,
+      environment: process.env.NODE_ENV
+    });
+  }, []);
 
   const addNotification = (message, type = 'info') => {
     const id = Date.now();
@@ -47,7 +81,7 @@ const EdgeMLDashboard = () => {
   useEffect(() => {
     const checkBackendHealth = async () => {
       try {
-        const response = await fetch('http://10.70.0.64:8080/health');
+        const response = await fetch(`http://${BACKEND_HOST}:${BACKEND_PORT}/health`);
         if (response.ok) {
           console.log('Backend is healthy');
           // Get system info
@@ -67,12 +101,12 @@ const EdgeMLDashboard = () => {
     // Check system info periodically
     const interval = setInterval(checkBackendHealth, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [API_BASE, BACKEND_HOST, BACKEND_PORT]);
 
   // WebSocket connection for real-time detection data
   useEffect(() => {
     if (isStreamActive && !websocketRef.current) {
-      const wsUrl = `ws://10.70.0.64:8080/api/stream/detections`;
+      const wsUrl = `ws://${BACKEND_HOST}:${BACKEND_PORT}/api/stream/detections`;
       websocketRef.current = new WebSocket(wsUrl);
 
       websocketRef.current.onopen = () => {
@@ -120,7 +154,7 @@ const EdgeMLDashboard = () => {
         setStreamConnected(false);
       }
     };
-  }, [isStreamActive]);
+  }, [isStreamActive, BACKEND_HOST, BACKEND_PORT]);
 
   // Poll deployment status
   useEffect(() => {
@@ -354,7 +388,7 @@ const EdgeMLDashboard = () => {
 
         // Set the stream source to the backend video endpoint
         if (streamImgRef.current) {
-          streamImgRef.current.src = `http://10.70.0.64:8080/api/stream/video?t=${Date.now()}`;
+          streamImgRef.current.src = `http://${BACKEND_HOST}:${BACKEND_PORT}/api/stream/video?t=${Date.now()}`;
         }
       } else {
         throw new Error(data.detail || 'Failed to start stream');
@@ -513,7 +547,7 @@ const EdgeMLDashboard = () => {
       <div className="video-container">
         {isStreamActive ? (
           <iframe
-            src={`http://10.70.0.64:8080/api/stream/video?t=${Date.now()}`}
+            src={`http://${BACKEND_HOST}:${BACKEND_PORT}/api/stream/video?t=${Date.now()}`}
             style={{
               width: '100%',
               height: '100%',
@@ -814,7 +848,7 @@ const EdgeMLDashboard = () => {
               <div className="deployment-grid">
                 <div className="deployment-info">
                   <h4>Source</h4>
-                  <p>JupyterHub (akumar@10.70.0.64)</p>
+                  <p>JupyterHub</p>
                 </div>
                 <div className="deployment-info">
                   <h4>Target Device</h4>
@@ -865,5 +899,3 @@ const EdgeMLDashboard = () => {
     </div>
   );
 };
-
-export default EdgeMLDashboard;
