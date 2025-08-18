@@ -1682,3 +1682,356 @@ body {
     animation: none;
   }
 }
+
+/* Training Section Styles */
+.training-section {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.training-section h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Input Help Text */
+.input-help {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 0.5rem;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+/* Deployment Section */
+.deployment-section {
+  background: linear-gradient(135deg, #fefefe 0%, #f8fafc 100%);
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 2rem;
+  margin-top: 2rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.deployment-section h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0.75rem;
+}
+
+/* Deployment Info Box */
+.deployment-info-box {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  border: 1px solid #3b82f6;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.1);
+}
+
+.deployment-info-box h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e40af;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.deployment-info-box p {
+  font-size: 0.875rem;
+  color: #1e3a8a;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+/* Enhanced Deployment Grid */
+.deployment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.deployment-info {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  padding: 1.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.deployment-info:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-color: #3b82f6;
+}
+
+.deployment-info h4,
+.deployment-info h5 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.deployment-info p {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+  font-weight: 500;
+}
+
+/* JupyterHub Access Section */
+.jupyterhub-access {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1px solid #22c55e;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+  box-shadow: 0 2px 4px rgba(34, 197, 94, 0.1);
+}
+
+.access-info {
+  margin-bottom: 1rem;
+}
+
+.access-info p {
+  font-size: 0.875rem;
+  color: #166534;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Enhanced Progress Section */
+.progress-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #f59e0b, #d97706, #f59e0b);
+  background-size: 200% 100%;
+  animation: progress-shimmer 2s infinite;
+}
+
+@keyframes progress-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.progress-section .progress-text {
+  font-size: 0.875rem;
+  color: #92400e;
+  margin-top: 0.75rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.progress-section .progress-text::before {
+  content: '⚙️';
+  font-size: 1rem;
+}
+
+
+/* Form Input Enhancements for Training Tab */
+.training-section .form-input {
+  border: 2px solid #e5e7eb;
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.training-section .form-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  background: #fefefe;
+}
+
+.training-section .form-input:disabled {
+  background-color: #f9fafb;
+  border-color: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Status Indicators */
+.training-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-top: 1rem;
+}
+
+.training-status.in-progress {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+
+.training-status.completed {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.training-status.error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #ef4444;
+}
+
+/* Responsive Design for Training Tab */
+@media (max-width: 768px) {
+  .training-section,
+  .deployment-section {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .deployment-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .deployment-info {
+    padding: 1rem;
+  }
+
+  .jupyterhub-access {
+    padding: 1rem;
+  }
+
+  .btn.btn-primary.btn-large {
+    padding: 0.875rem 1.5rem;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .training-section,
+  .deployment-section,
+  .deployment-info-box,
+  .jupyterhub-access {
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .progress-section {
+    padding: 1rem;
+  }
+
+  .deployment-section h3 {
+    font-size: 1.125rem;
+  }
+
+  .btn.btn-primary.btn-large {
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* Loading Animation for Training Button */
+.btn .animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+
+/* Training Progress Specific Styles */
+.training-progress-container {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-top: 1rem;
+  border: 1px solid #e5e7eb;
+}
+
+.training-progress-container .progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.training-progress-container .progress-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.training-progress-container .progress-percentage {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #3b82f6;
+}
+
+/* Deployment Method Badge */
+.deployment-method-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+}
+
+/* Connection Status for Training */
+.training-connection-warning {
+  background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
+  border: 1px solid #f59e0b;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.training-connection-warning::before {
+  content: '⚠️';
+  font-size: 1.25rem;
+}
+
+.training-connection-warning p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #92400e;
+  font-weight: 500;
+}

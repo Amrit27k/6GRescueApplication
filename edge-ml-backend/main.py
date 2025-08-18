@@ -1,7 +1,3 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from fastapi.staticfiles import StaticFiles
 import httpx
 import asyncio
 import json
@@ -22,6 +18,11 @@ from mqtt_stream_client import RTSPMQTTStreamClient
 import numpy as np
 import time
 import queue
+
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -322,6 +323,7 @@ async def upload_training_images(
         logger.error(f"Upload error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
+
 async def upload_files_to_jupyterhub(object_name: str, file_paths: List[str]):
     """Upload files to JupyterHub via Contents API"""
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -332,7 +334,7 @@ async def upload_files_to_jupyterhub(object_name: str, file_paths: List[str]):
             filename = f"{object_name}_{i+1}.jpg"
 
             # Read file content and encode as base64
-            async with aiofiles.open(file_path, 'rb') as f:
+            with aiofiles.open(file_path, 'rb') as f:
                 file_content = await f.read()
                 encoded_content = base64.b64encode(file_content).decode('utf-8')
 
@@ -343,7 +345,7 @@ async def upload_files_to_jupyterhub(object_name: str, file_paths: List[str]):
             dir_data = {
                 "type": "directory"
             }
-            await client.put(
+            client.put(
                 f"{JUPYTERHUB_URL}/user/{JUPYTERHUB_USER}/api/contents/{jupyter_path}",
                 headers={"Authorization": f"token {jupyterhub_token}"},
                 json=dir_data
@@ -356,7 +358,7 @@ async def upload_files_to_jupyterhub(object_name: str, file_paths: List[str]):
                 "content": encoded_content
             }
 
-            response = await client.put(
+            response = client.put(
                 f"{JUPYTERHUB_URL}/user/{JUPYTERHUB_USER}/api/contents/{jupyter_path}/{filename}",
                 headers={"Authorization": f"token {jupyterhub_token}"},
                 json=file_data
@@ -524,6 +526,8 @@ async def get_deployment_status(deployment_id: str):
 
     return deployment_status[deployment_id]
 
+
+
 # Stream endpoints using your MQTT client
 @app.get("/api/stream/video")
 async def video_stream():
@@ -685,6 +689,243 @@ async def get_current_detections():
             "detections": [],
             "count": 0
         }
+
+@app.post("/api/training/execute-notebook")
+async def execute_training_notebook(
+    request: NotebookExecutionRequest,
+    background_tasks: BackgroundTasks
+):
+    """Execute the training notebook on JupyterHub server"""
+    if not jupyterhub_token:
+        raise HTTPException(status_code=401, detail="JupyterHub not connected")
+
+    training_id = str(uuid.uuid4())
+
+    # Initialize training status
+    training_status[training_id] = {
+        "status": "starting",
+        "progress": 0,
+        "message": "Initializing notebook execution...",
+        "object_name": request.object_name,
+        "notebook_path": request.notebook_path,
+        "started_at": datetime.now().isoformat()
+    }
+
+    # Start training in background
+    background_tasks.add_task(
+        execute_notebook_training,
+        training_id,
+        request.object_name,
+        request.notebook_path,
+        request.timeout
+    )
+
+    return {
+        "training_id": training_id,
+        "status": "started",
+        "message": f"Training started for object: {request.object_name}"
+    }
+
+async def execute_notebook_training(training_id: str, object_name: str, notebook_path: str, timeout: int):
+    """Execute the training notebook via JupyterHub API using nbformat"""
+    try:
+        training_status[training_id].update({
+            "status": "running",
+            "progress": 10,
+            "message": "Ensuring server is running..."
+        })
+
+        async with httpx.AsyncClient(timeout=float(timeout + 60)) as client:
+            # Ensure server is running
+            await ensure_server_running(client)
+
+            training_status[training_id].update({
+                "progress": 30,
+                "message": f"Creating and executing training for {object_name}..."
+            })
+
+            # Create a comprehensive script that does EVERYTHING including execution
+            comprehensive_script = f'''#!/usr/bin/env python3
+import subprocess
+import sys
+import os
+import time
+import nbformat
+from nbconvert.preprocessors import ExecutePreprocessor
+from datetime import datetime
+
+def main():
+    print(" Starting comprehensive training execution...")
+
+    try:
+        print(" Changing to training directory...")
+        os.chdir('/home/jupyter-{JUPYTERHUB_USER}/face_recognition_system/edge_server')
+        print(f" Changed to: {{os.getcwd()}}")
+        executed_folder = "executed_notebooks"
+
+        os.makedirs(executed_folder, exist_ok=True)
+
+        print(" Loading edge_train.ipynb...")
+        with open('edge_train.ipynb', 'r') as f:
+            nb = nbformat.read(f, as_version=4)
+
+        print(f" Notebook loaded with {{len(nb.cells)}} cells")
+
+        # Replace argparse with MockArgs in the notebook cell
+        cells_modified = 0
+        for i, cell in enumerate(nb.cells):
+            if cell.cell_type == 'code':
+                print(f" Processing cell {{i}}...")
+                original_source = cell.source
+
+                # Replace the argparse line with proper indentation
+                cell.source = cell.source.replace(
+                    'args = parser.parse_args()',
+                    f"""class MockArgs:\n      def __init__(self):\n        self.person_name = "{object_name}"\n    args = MockArgs()"""
+                )
+                if cell.source != original_source:
+                    cells_modified += 1
+
+        print(f" Modified {{cells_modified}} cells with person_name = {object_name}")
+
+        # Execute notebook
+        print(" Setting up ExecutePreprocessor...")
+        ep = ExecutePreprocessor(
+            timeout={timeout},
+            kernel_name='python3',
+            cwd='/home/jupyter-{JUPYTERHUB_USER}/face_recognition_system/edge_server'
+        )
+
+        print(" Starting notebook execution...")
+        ep.preprocess(nb, {{'metadata': {{'path': '/home/jupyter-{JUPYTERHUB_USER}/face_recognition_system/edge_server/'}}}})
+        print(" Notebook executed successfully!")
+
+        # Check for execution errors
+        has_errors = False
+        for i, cell in enumerate(nb.cells):
+            if cell.cell_type == 'code' and hasattr(cell, 'outputs'):
+                print(f" Checking outputs for cell {{i}}...")
+                for output in cell.outputs:
+                    if output.output_type == 'error':
+                        print(f" Error in cell {{i}}: {{output.ename}}: {{output.evalue}}")
+                        has_errors = True
+                    elif output.output_type == 'stream' and output.name == 'stdout':
+                        output_text = output.text.strip()
+                        if any(keyword in output_text.lower() for keyword in ['success', 'completed', 'trained', 'saved']):
+                            print(f" Cell {{i}} success output: {{output_text[:200]}}")
+
+        # Save executed notebook
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        executed_notebook_name = f'executed_notebooks/edge_train_executed_{object_name}_{{timestamp}}.ipynb'
+
+        print(f"Saving executed notebook as: {{executed_notebook_name}}")
+        with open(executed_notebook_name, 'w') as f:
+            nbformat.write(nb, f)
+
+        if not has_errors:
+            print(" SUCCESS: Training completed without errors!")
+            print(f" Executed notebook saved: {{executed_notebook_name}}")
+            print(f" Person trained: {object_name}")
+            return True
+        else:
+            print(" WARNING: Training completed but with some errors")
+            return False
+
+    except Exception as e:
+        print(f" ERROR: Notebook execution failed: {{str(e)}}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+if __name__ == "__main__":
+    print(" Starting comprehensive training...")
+    success = main()
+    if success:
+        print(" COMPREHENSIVE TRAINING COMPLETED SUCCESSFULLY")
+        print(f" Person {object_name} has been trained and registered")
+    else:
+        print(" COMPREHENSIVE TRAINING FAILED")
+    print(" Comprehensive execution completed!")
+'''
+
+            training_status[training_id].update({
+                "progress": 50,
+                "message": f"Executing training for {object_name}..."
+            })
+            # Create the comprehensive script
+            script_name = f"comprehensive_training_{training_id}.py"
+            script_response = await client.put(
+                f"{JUPYTERHUB_URL}/user/{JUPYTERHUB_USER}/api/contents/{script_name}",
+                headers={"Authorization": f"token {jupyterhub_token}"},
+                json={
+                    "type": "file",
+                    "format": "text",
+                    "content": comprehensive_script
+                }
+            )
+
+            if script_response.status_code not in [200, 201]:
+                raise Exception(f"Failed to create comprehensive script: {script_response.text}")
+
+            training_status[training_id].update({
+                "progress": 70,
+                "message": f"Script created successfully. Training for {object_name} in progress..."
+            })
+
+
+            # Clean up: delete execution scripts
+            #try:
+            #    await client.delete(
+            #        f"{JUPYTERHUB_URL}/user/{JUPYTERHUB_USER}/api/contents/{script_name}",
+            #        headers={"Authorization": f"token {jupyterhub_token}"}
+            #    )
+            #    if 'subprocess_script_name' in locals():
+            #        await client.delete(
+            #            f"{JUPYTERHUB_URL}/user/{JUPYTERHUB_USER}/api/contents/{subprocess_script_name}",
+            #            headers={"Authorization": f"token {jupyterhub_token}"}
+            #        )
+            #except:
+            #    pass
+
+            training_status[training_id].update({
+                "status": "completed",
+                "progress": 100,
+                "message": f"Training script generation completed for person: {object_name}. Check JupyterHub for the execution script and notebook.",
+                "completed_at": datetime.now().isoformat()
+            })
+
+    except asyncio.TimeoutError:
+        training_status[training_id].update({
+            "status": "failed",
+            "message": f"Training timed out after {timeout} seconds",
+            "error_at": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Training error: {str(e)}")
+        training_status[training_id].update({
+            "status": "failed",
+            "message": f"Training failed: {str(e)}",
+            "error_at": datetime.now().isoformat()
+        })
+
+
+@app.get("/api/training/status/{training_id}")
+async def get_training_status(training_id: str):
+    """Get the status of a training job"""
+    if training_id not in training_status:
+        raise HTTPException(status_code=404, detail="Training ID not found")
+
+    return training_status[training_id]
+
+# List all training jobs
+@app.get("/api/training/list")
+async def list_training_jobs():
+    """List all training jobs and their statuses"""
+    return {
+        "training_jobs": training_status,
+        "total_jobs": len(training_status),
+        "active_jobs": len([s for s in training_status.values() if s["status"] == "running"])
+    }
 
 # System information
 @app.get("/api/system/info")

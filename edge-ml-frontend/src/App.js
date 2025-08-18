@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Play, Eye, AlertCircle, CheckCircle, Loader, Camera, Send, Server, Wifi, WifiOff, User, FolderUp, Image, PlayCircle } from 'lucide-react';
+import { Upload, Play, Eye, AlertCircle, CheckCircle, Loader, Camera, Send, Server, Wifi, WifiOff, User, FolderUp, Image, PlayCircle, Brain, ExternalLink } from 'lucide-react';
 import './App.css';
 
 const EdgeMLDashboard = () => {
@@ -10,13 +10,17 @@ const EdgeMLDashboard = () => {
   const [isDeploying, setIsDeploying] = useState(false);
   const [isStreamActive, setIsStreamActive] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [hubToken, setHubToken] = useState('');
+  const [hubToken, setHubToken] = useState('e976480cd4dd4addab434134aa5d8e56');
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [userInfo, setUserInfo] = useState(null);
   const [deploymentProgress, setDeploymentProgress] = useState(0);
   const [currentDeploymentId, setCurrentDeploymentId] = useState(null);
   const [systemInfo, setSystemInfo] = useState(null);
   const [uploadHistory, setUploadHistory] = useState([]);
+  const [trainingPersonName, setTrainingPersonName] = useState('');
+  const [isTraining, setIsTraining] = useState(false);
+  const [trainingProgress, setTrainingProgress] = useState(0);
+  const [currentTrainingId, setCurrentTrainingId] = useState(null);
 
   // Stream-specific state
   const [streamConnected, setStreamConnected] = useState(false);
@@ -31,44 +35,10 @@ const EdgeMLDashboard = () => {
   const fileInputRef = useRef(null);
   const streamImgRef = useRef(null);
   const websocketRef = useRef(null);
-  const getApiConfig = () => {
-    // Try environment variables first
-    if (process.env.REACT_APP_API_BASE) {
-      return {
-        API_BASE: process.env.REACT_APP_API_BASE,
-        BACKEND_HOST: process.env.REACT_APP_BACKEND_HOST || 'localhost',
-        BACKEND_PORT: process.env.REACT_APP_BACKEND_PORT || '8080'
-      };
-    }
 
-    // Fallback: try to detect from current location
-    const currentHost = window.location.hostname;
-    const backendHost = currentHost === 'localhost' ? 'localhost' : currentHost;
-
-    return {
-      API_BASE: `http://${backendHost}:8080/api`,
-      BACKEND_HOST: backendHost,
-      BACKEND_PORT: '8080'
-    };
-  };
   // Updated API base to match your backend
-  const config = getApiConfig()
-  // Updated API base to match your backend
-  const API_BASE = config.API_BASE;
-  const BACKEND_HOST = config.BACKEND_HOST;
-  const BACKEND_PORT = config.BACKEND_PORT;
-
-  // Log configuration for debugging
-  useEffect(() => {
-    console.log('API Configuration:', {
-      API_BASE,
-      BACKEND_HOST,
-      BACKEND_PORT,
-      current_hostname: window.location.hostname,
-      environment: process.env.NODE_ENV
-    });
-  }, []);
-
+  const API_BASE = 'http://10.70.0.64:8080/api';
+  const JUPYTERHUB_URL = "http://10.70.0.64";
   const addNotification = (message, type = 'info') => {
     const id = Date.now();
     setNotifications(prev => [...prev, { id, message, type }]);
@@ -81,7 +51,7 @@ const EdgeMLDashboard = () => {
   useEffect(() => {
     const checkBackendHealth = async () => {
       try {
-        const response = await fetch(`http://${BACKEND_HOST}:${BACKEND_PORT}/health`);
+        const response = await fetch('http://10.70.0.64:8080/health');
         if (response.ok) {
           console.log('Backend is healthy');
           // Get system info
@@ -101,12 +71,12 @@ const EdgeMLDashboard = () => {
     // Check system info periodically
     const interval = setInterval(checkBackendHealth, 30000);
     return () => clearInterval(interval);
-  }, [API_BASE, BACKEND_HOST, BACKEND_PORT]);
+  }, []);
 
   // WebSocket connection for real-time detection data
   useEffect(() => {
     if (isStreamActive && !websocketRef.current) {
-      const wsUrl = `ws://${BACKEND_HOST}:${BACKEND_PORT}/api/stream/detections`;
+      const wsUrl = `ws://10.70.0.64:8080/api/stream/detections`;
       websocketRef.current = new WebSocket(wsUrl);
 
       websocketRef.current.onopen = () => {
@@ -154,7 +124,7 @@ const EdgeMLDashboard = () => {
         setStreamConnected(false);
       }
     };
-  }, [isStreamActive, BACKEND_HOST, BACKEND_PORT]);
+  }, [isStreamActive]);
 
   // Poll deployment status
   useEffect(() => {
@@ -187,6 +157,39 @@ const EdgeMLDashboard = () => {
       if (interval) clearInterval(interval);
     };
   }, [currentDeploymentId, isDeploying]);
+
+
+  // Poll training status
+  useEffect(() => {
+    let interval;
+    if (currentTrainingId && isTraining) {
+      interval = setInterval(async () => {
+        try {
+          const response = await fetch(`${API_BASE}/training/status/${currentTrainingId}`);
+          if (response.ok) {
+            const status = await response.json();
+            setTrainingProgress(status.progress || 0);
+
+            if (status.status === 'completed') {
+              setIsTraining(false);
+              setCurrentTrainingId(null);
+              addNotification('Model training completed successfully!', 'success');
+            } else if (status.status === 'failed') {
+              setIsTraining(false);
+              setCurrentTrainingId(null);
+              addNotification(`Training failed: ${status.message}`, 'error');
+            }
+          }
+        } catch (error) {
+          console.error('Error polling training status:', error);
+        }
+      }, 2000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [currentTrainingId, isTraining]);
 
   const testJupyterHubConnection = async () => {
     if (!hubToken) {
@@ -334,6 +337,51 @@ const EdgeMLDashboard = () => {
     }
   };
 
+
+  const handleStartTraining = async () => {
+    if (connectionStatus !== 'connected') {
+      addNotification('Please connect to JupyterHub first', 'error');
+      return;
+    }
+
+    if (!trainingPersonName.trim()) {
+      addNotification('Please enter person name for training', 'error');
+      return;
+    }
+
+    setIsTraining(true);
+    setTrainingProgress(0);
+    addNotification('Starting model training on JupyterHub...', 'info');
+
+    try {
+      const response = await fetch(`${API_BASE}/training/execute-notebook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          object_name: trainingPersonName,
+          notebook_path: 'face_recognition_system/edge_server/edge_train.ipynb',
+          timeout: 600
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Training failed to start');
+      }
+
+      const data = await response.json();
+      setCurrentTrainingId(data.training_id);
+      addNotification(`Training started for ${trainingPersonName}`, 'success');
+
+    } catch (error) {
+      addNotification(`Training error: ${error.message}`, 'error');
+      setIsTraining(false);
+      setTrainingProgress(0);
+    }
+  };
+
   const handleDeployToJetson = async () => {
     if (connectionStatus !== 'connected') {
       addNotification('Please connect to JupyterHub first', 'error');
@@ -371,6 +419,11 @@ const EdgeMLDashboard = () => {
     }
   };
 
+  const openJupyterHub = () => {
+    window.open(JUPYTERHUB_URL, '_blank');
+  };
+
+
   const startRTSPStream = async () => {
     setIsStreamActive(true);
     addNotification('Starting RTSP stream with MQTT integration...', 'info');
@@ -388,7 +441,7 @@ const EdgeMLDashboard = () => {
 
         // Set the stream source to the backend video endpoint
         if (streamImgRef.current) {
-          streamImgRef.current.src = `http://${BACKEND_HOST}:${BACKEND_PORT}/api/stream/video?t=${Date.now()}`;
+          streamImgRef.current.src = `http://10.70.0.64:8080/api/stream/video?t=${Date.now()}`;
         }
       } else {
         throw new Error(data.detail || 'Failed to start stream');
@@ -547,7 +600,7 @@ const EdgeMLDashboard = () => {
       <div className="video-container">
         {isStreamActive ? (
           <iframe
-            src={`http://${BACKEND_HOST}:${BACKEND_PORT}/api/stream/video?t=${Date.now()}`}
+            src={`http://10.70.0.64:8080/api/stream/video?t=${Date.now()}`}
             style={{
               width: '100%',
               height: '100%',
@@ -690,7 +743,7 @@ const EdgeMLDashboard = () => {
           <div className="nav-tabs">
             {[
               { id: 'upload', label: 'Upload Images', icon: FolderUp },
-              { id: 'deploy', label: 'Deploy to Jetson', icon: Send },
+              { id: 'training', label: 'Model Training & Deploy to IoT', icon: Brain },
               { id: 'stream', label: 'Live Stream', icon: Eye },
             ].map(({ id, label, icon: Icon }) => (
               <button
@@ -830,66 +883,109 @@ const EdgeMLDashboard = () => {
             </div>
           )}
 
-          {activeTab === 'deploy' && (
+          {activeTab === 'training' && (
             <div className="tab-content">
               <h2 className="tab-title">
                 <Send size={24} />
-                <span>Deploy to Jetson</span>
+                <span>Model Training & Deploy to IoT</span>
               </h2>
 
               <div className="info-box">
                 <h3>Deployment Information</h3>
                 <p>
-                  This will execute the simple_file_transfer.py script on JupyterHub server (akumar profile) to deploy
-                  the latest trained model to your Jetson Nano device using the MLflow plugin.
+                  Train a face recognition model using uploaded images and deploy it to your IoT device.
+                  The training will execute the notebook on JupyterHub server and deployment will use MLflow plugin.
+                  Execute the simple_file_transfer.py script on JupyterHub server to deploy
+                  the latest trained model to your IoT device using the MLflow plugin as per instructions.
                 </p>
               </div>
 
-              <div className="deployment-grid">
-                <div className="deployment-info">
-                  <h4>Source</h4>
-                  <p>JupyterHub</p>
-                </div>
-                <div className="deployment-info">
-                  <h4>Target Device</h4>
-                  <p>Jetson Nano (192.168.2.100)</p>
-                </div>
-                <div className="deployment-info">
-                  <h4>Model Type</h4>
-                  <p>Random Forest Face Recognition</p>
-                </div>
-                <div className="deployment-info">
-                  <h4>Deployment Script</h4>
-                  <p>simple_file_transfer.py</p>
-                </div>
-              </div>
-
-              {isDeploying && (
-                <div className="progress-section">
-                  <ProgressBar progress={deploymentProgress} label="Deployment Progress" />
-                  <p className="progress-text">
-                    Deployment running on JupyterHub server (akumar profile)
+              {/* Training Section */}
+              <div className="training-section">
+                <div className="form-group">
+                  <label>Person Name for Training</label>
+                  <input
+                    type="text"
+                    value={trainingPersonName}
+                    onChange={(e) => setTrainingPersonName(e.target.value)}
+                    placeholder="Enter person name (must match uploaded folder name)"
+                    className="form-input"
+                    disabled={isTraining}
+                  />
+                  <p className="input-help">
+                    This should match the folder name used when uploading images (e.g., "john_doe")
                   </p>
                 </div>
-              )}
 
-              <button
-                onClick={handleDeployToJetson}
-                disabled={isDeploying || connectionStatus !== 'connected'}
-                className="btn btn-success btn-large"
-              >
-                {isDeploying ? (
-                  <>
-                    <Loader className="animate-spin" size={20} />
-                    <span>Deploying via JupyterHub... ({deploymentProgress}%)</span>
-                  </>
-                ) : (
-                  <>
-                    <Send size={20} />
-                    <span>Deploy to Jetson</span>
-                  </>
+                {isTraining && (
+                  <div className="progress-section">
+                    <ProgressBar progress={trainingProgress} label="Training Progress" />
+                    <p className="progress-text">
+                        Generating execution script for training on JupyterHub server
+                    </p>
+                  </div>
                 )}
-              </button>
+
+                <button
+                  onClick={handleStartTraining}
+                  disabled={isTraining || !trainingPersonName.trim() || connectionStatus !== 'connected'}
+                  className="btn btn-primary btn-large"
+                >
+                  {isTraining ? (
+                    <>
+                      <Loader className="animate-spin" size={20} />
+                      <span>Training Model... ({trainingProgress}%)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Brain size={20} />
+                      <span>Start Model Training</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Deployment Section */}
+              <div className="deployment-section">
+                <h3>Deploy to IoT Device</h3>
+
+                <div className="deployment-info-box">
+                  <h4>Deployment Details</h4>
+                  <p>Deploy through MLflow plugin from JupyterHub to your IoT device.</p>
+                  <div className="deployment-grid">
+                    <div className="deployment-info">
+                        <h5>Source</h5>
+                        <p>JupyterHub (akumar profile)</p>
+                    </div>
+                    <div className="deployment-info">
+                        <h5>Target Device</h5>
+                        <p>IoT Devices (192.168.0.100) </p>
+                    </div>
+                    <div className="deployment-info">
+                        <h5>Model Type</h5>
+                        <p>Random Forest Face Recognition</p>
+                    </div>
+                    <div className="deployment-info">
+                        <h5>Deployment Method</h5>
+                        <p>MLflow Plugin</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* JupyterHub Access */}
+                <div className="jupyterhub-access">
+                    <div className="access-info">
+                        <p>Access your JupyterHub instance to monitor training progress and manage notebooks.</p>
+                    </div>
+                    <button
+                        onClick={openJupyterHub}
+                        className="btn btn-secondary"
+                    >
+                        <ExternalLink size={18} />
+                        <span>Open JupyterHub ({JUPYTERHUB_URL})</span>
+                    </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -899,3 +995,5 @@ const EdgeMLDashboard = () => {
     </div>
   );
 };
+
+export default EdgeMLDashboard;
